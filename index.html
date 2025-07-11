@@ -38,6 +38,10 @@
             background-color: #e2e8f0;
             color: #1e293b;
         }
+        .disabled-overlay {
+            opacity: 0.5;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="bg-slate-100 flex items-center justify-center min-h-screen">
@@ -52,8 +56,20 @@
         <!-- Vùng chứa nội dung chính -->
         <main class="flex-grow flex flex-col overflow-hidden transition-all duration-500" id="main-content">
             
+            <!-- Vùng nhập API Key -->
+            <div id="api-key-container" class="p-6 bg-amber-50 border-b border-amber-200">
+                <h3 class="font-semibold text-slate-800 text-center mb-2">Bước 1: Cung cấp API Key</h3>
+                <p class="text-sm text-center text-slate-600 mb-3">Vui lòng nhập API Key của bạn từ Google AI Studio.</p>
+                <div class="flex items-center space-x-2 max-w-md mx-auto">
+                    <input type="password" id="api-key-input" class="flex-grow p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="dán API Key của bạn vào đây...">
+                    <button id="save-api-key-btn" class="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-600 transition-colors">Lưu Key</button>
+                </div>
+                <p id="api-key-status" class="text-center text-sm mt-2 h-4"></p>
+            </div>
+
             <!-- Giai đoạn 1: Tải tệp và đặt câu hỏi đầu tiên -->
-            <div id="upload-container" class="w-full max-w-lg text-center p-6 m-auto">
+            <div id="upload-container" class="w-full max-w-lg text-center p-6 m-auto disabled-overlay">
+                 <h3 class="font-semibold text-slate-800 text-center mb-4">Bước 2: Tải tài liệu và đặt câu hỏi</h3>
                 <form id="drop-zone" class="border-4 border-dashed border-slate-300 rounded-xl p-8 cursor-pointer hover:border-blue-500 hover:bg-slate-50 transition-all duration-300">
                     <input type="file" id="file-input" class="hidden" accept=".pdf,.docx">
                     <div class="flex flex-col items-center justify-center space-y-4">
@@ -110,6 +126,11 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
 
         // --- Lấy các phần tử DOM ---
+        const apiKeyContainer = document.getElementById('api-key-container');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+        const apiKeyStatus = document.getElementById('api-key-status');
+
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const browseBtn = document.getElementById('browse-btn');
@@ -125,25 +146,33 @@
         const sendBtn = document.getElementById('send-btn');
 
         // Biến trạng thái
+        let userApiKey = null;
         let documentText = null;
         let currentFileName = null;
+
+        // --- Xử lý API Key ---
+        saveApiKeyBtn.addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                userApiKey = key;
+                apiKeyStatus.textContent = 'API Key đã được lưu thành công!';
+                apiKeyStatus.className = 'text-center text-sm mt-2 h-4 text-green-600';
+                apiKeyContainer.classList.add('hidden');
+                uploadContainer.classList.remove('disabled-overlay');
+            } else {
+                apiKeyStatus.textContent = 'Vui lòng nhập một API Key hợp lệ.';
+                apiKeyStatus.className = 'text-center text-sm mt-2 h-4 text-red-600';
+            }
+        });
 
         // --- Giai đoạn 1: Upload và câu hỏi đầu tiên ---
         browseBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
         });
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('border-blue-500', 'bg-slate-50');
-        });
-        dropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('border-blue-500', 'bg-slate-50');
-        });
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('border-blue-500', 'bg-slate-50');
             if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
         });
 
@@ -213,6 +242,10 @@
 
         async function askQuestion(question, isFirstQuestion = false) {
             if (!question || !documentText) return;
+            if (!userApiKey) {
+                alert("Lỗi: API Key chưa được thiết lập.");
+                return;
+            }
             
             if (isFirstQuestion) {
                  addMessageToChat('bot', `Xin chào! Tôi đã sẵn sàng để trả lời các câu hỏi từ tài liệu <strong>${currentFileName}</strong>.`);
@@ -223,8 +256,7 @@
             showTypingIndicator();
 
             // --- TÍCH HỢP GEMINI API ---
-            const apiKey = ""; // Canvas sẽ tự động cung cấp API key
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${userApiKey}`;
 
             const systemPrompt = `QUAN TRỌNG: Bạn là một trợ lý AI chuyên trả lời câu hỏi chỉ dựa trên nội dung được cung cấp.
 1. Phân tích kỹ lưỡng nội dung trong phần [NỘI DUNG TÀI LIỆU].
@@ -257,7 +289,7 @@ ${question}`;
                 if (!response.ok) {
                     const errorBody = await response.json();
                     console.error('Lỗi API:', errorBody);
-                    throw new Error('Hệ thống đang gặp sự cố, vui lòng thử lại sau.');
+                    throw new Error('Có lỗi xảy ra với API Key hoặc hệ thống. Vui lòng kiểm tra lại Key và thử lại.');
                 }
 
                 const result = await response.json();
@@ -285,7 +317,6 @@ ${question}`;
             messageWrapper.classList.add('flex', 'items-start', 'space-x-3', 'max-w-xl');
             const messageBubble = document.createElement('div');
             messageBubble.classList.add('p-3', 'rounded-xl');
-            // Thay thế newline bằng thẻ <br> để hiển thị đúng trong HTML
             messageBubble.innerHTML = message.replace(/\n/g, '<br>');
 
             if (sender === 'user') {
