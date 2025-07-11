@@ -54,10 +54,10 @@
         </header>
 
         <!-- Vùng chứa nội dung chính -->
-        <main class="flex-grow flex flex-col overflow-hidden transition-all duration-500" id="main-content">
+        <main class="flex-grow flex flex-col overflow-y-auto" id="main-content">
             
             <!-- Vùng nhập API Key -->
-            <div id="api-key-container" class="p-6 bg-amber-50 border-b border-amber-200">
+            <div id="api-key-container" class="p-6 bg-amber-50 border-b border-amber-200 flex-shrink-0">
                 <h3 class="font-semibold text-slate-800 text-center mb-2">Bước 1: Cung cấp API Key</h3>
                 <p class="text-sm text-center text-slate-600 mb-3">Vui lòng nhập API Key của bạn từ Google AI Studio.</p>
                 <div class="flex items-center space-x-2 max-w-md mx-auto">
@@ -68,7 +68,7 @@
             </div>
 
             <!-- Giai đoạn 1: Tải tệp và đặt câu hỏi đầu tiên -->
-            <div id="upload-container" class="w-full max-w-lg text-center p-6 m-auto disabled-overlay">
+            <div id="upload-container" class="w-full max-w-lg text-center p-6 mx-auto disabled-overlay">
                  <h3 class="font-semibold text-slate-800 text-center mb-4">Bước 2: Tải tài liệu và đặt câu hỏi</h3>
                 <form id="drop-zone" class="border-4 border-dashed border-slate-300 rounded-xl p-8 cursor-pointer hover:border-blue-500 hover:bg-slate-50 transition-all duration-300">
                     <input type="file" id="file-input" class="hidden" accept=".pdf,.docx">
@@ -229,6 +229,7 @@
             const question = initialQuestionInput.value.trim();
             if (question) {
                 uploadContainer.classList.add('hidden');
+                apiKeyContainer.classList.add('hidden'); // Also hide api key container if not already
                 chatContainer.classList.remove('hidden');
                 askQuestion(question, true);
             }
