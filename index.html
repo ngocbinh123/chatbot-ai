@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Thư Ký AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Thư viện PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- Thư viện Mammoth.js để đọc .docx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+        #chat-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-box::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        #chat-box::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 10px;
+        }
+        #chat-box::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .chat-bubble-user {
+            background-color: #2563eb;
+            color: white;
+        }
+        .chat-bubble-bot {
+            background-color: #e2e8f0;
+            color: #1e293b;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-3xl bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="height: 90vh;">
+        <!-- Header -->
+        <header class="bg-slate-800 text-white p-4 text-center shadow-md flex-shrink-0">
+            <h1 class="text-2xl font-bold">Chatbot Thư Ký AI</h1>
+            <p class="text-sm text-slate-300">Hỏi đáp với tài liệu của bạn một cách riêng tư</p>
+        </header>
+
+        <!-- Vùng chứa nội dung chính -->
+        <main class="flex-grow flex flex-col overflow-hidden transition-all duration-500" id="main-content">
+            
+            <!-- Giai đoạn 1: Tải tệp và đặt câu hỏi đầu tiên -->
+            <div id="upload-container" class="w-full max-w-lg text-center p-6 m-auto">
+                <form id="drop-zone" class="border-4 border-dashed border-slate-300 rounded-xl p-8 cursor-pointer hover:border-blue-500 hover:bg-slate-50 transition-all duration-300">
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.docx">
+                    <div class="flex flex-col items-center justify-center space-y-4">
+                        <svg class="w-16 h-16 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                        <p class="text-slate-600 font-medium">Kéo và thả tệp của bạn vào đây</p>
+                        <p class="text-slate-500">hoặc</p>
+                        <button type="button" id="browse-btn" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                            Chọn tệp từ máy
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-6">Hỗ trợ các định dạng: PDF, DOCX</p>
+                </form>
+                <div id="upload-status" class="mt-4 text-slate-700 h-6"></div>
+                
+                <!-- Vùng nhập câu hỏi ban đầu -->
+                <div id="initial-question-container" class="mt-4 w-full">
+                    <div class="flex items-center space-x-3">
+                        <input type="text" id="initial-question-input" class="flex-grow p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Nhập câu hỏi của bạn ở đây..." disabled>
+                        <button id="initial-send-btn" class="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors flex-shrink-0" disabled>
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Giai đoạn 2: Giao diện Chat -->
+            <div id="chat-container" class="hidden w-full h-full flex flex-col p-6">
+                <!-- Hộp thoại chat -->
+                <div id="chat-box" class="flex-grow p-4 space-y-6 overflow-y-auto">
+                    <!-- Các tin nhắn sẽ được thêm vào đây bằng JavaScript -->
+                </div>
+                <!-- Vùng nhập tin nhắn -->
+                <div class="pt-4 border-t border-slate-200 flex-shrink-0">
+                    <div class="flex items-center space-x-3">
+                        <input type="text" id="user-input" class="flex-grow p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Nhập câu hỏi tiếp theo...">
+                        <button id="send-btn" class="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors flex-shrink-0">
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // Cấu hình worker cho PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+
+        // --- Lấy các phần tử DOM ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const uploadStatus = document.getElementById('upload-status');
+        const uploadContainer = document.getElementById('upload-container');
+        
+        const initialQuestionInput = document.getElementById('initial-question-input');
+        const initialSendBtn = document.getElementById('initial-send-btn');
+
+        const chatContainer = document.getElementById('chat-container');
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // Biến trạng thái
+        let documentText = null;
+        let currentFileName = null;
+
+        // --- Giai đoạn 1: Upload và câu hỏi đầu tiên ---
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+        });
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500', 'bg-slate-50');
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-slate-50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-slate-50');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        async function handleFile(file) {
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+            if (!['pdf', 'docx'].includes(fileExtension)) {
+                uploadStatus.innerHTML = `<p class="text-red-500 font-semibold">Lỗi: Định dạng tệp không được hỗ trợ.</p>`;
+                return;
+            }
+
+            currentFileName = file.name;
+            documentText = null; // Reset nội dung cũ
+            uploadStatus.innerHTML = `<p class="text-blue-600 font-semibold">Đang xử lý tệp: ${file.name}...</p>`;
+            initialQuestionInput.disabled = true;
+            initialSendBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const arrayBuffer = event.target.result;
+                    if (fileExtension === 'pdf') {
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let textContent = '';
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const text = await page.getTextContent();
+                            textContent += text.items.map(item => item.str).join(' ');
+                        }
+                        documentText = textContent;
+                    } else if (fileExtension === 'docx') {
+                        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+                        documentText = result.value;
+                    }
+                    
+                    uploadStatus.innerHTML = `<p class="text-green-600 font-semibold">Đã xử lý xong: ${currentFileName}</p>`;
+                    initialQuestionInput.disabled = false;
+                    initialQuestionInput.focus();
+
+                } catch (error) {
+                    console.error('Lỗi khi xử lý tệp:', error);
+                    uploadStatus.innerHTML = `<p class="text-red-500 font-semibold">Không thể đọc nội dung từ tệp này.</p>`;
+                    documentText = null;
+                    currentFileName = null;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        initialQuestionInput.addEventListener('input', () => {
+            initialSendBtn.disabled = initialQuestionInput.value.trim() === '' || !documentText;
+        });
+
+        initialSendBtn.addEventListener('click', () => {
+            const question = initialQuestionInput.value.trim();
+            if (question) {
+                uploadContainer.classList.add('hidden');
+                chatContainer.classList.remove('hidden');
+                askQuestion(question, true);
+            }
+        });
+
+        // --- Giai đoạn 2: Xử lý trong giao diện chat ---
+        sendBtn.addEventListener('click', () => askQuestion(userInput.value.trim()));
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') askQuestion(userInput.value.trim());
+        });
+
+        async function askQuestion(question, isFirstQuestion = false) {
+            if (!question || !documentText) return;
+            
+            if (isFirstQuestion) {
+                 addMessageToChat('bot', `Xin chào! Tôi đã sẵn sàng để trả lời các câu hỏi từ tài liệu <strong>${currentFileName}</strong>.`);
+            }
+
+            addMessageToChat('user', question);
+            userInput.value = '';
+            showTypingIndicator();
+
+            // --- TÍCH HỢP GEMINI API ---
+            const apiKey = ""; // Canvas sẽ tự động cung cấp API key
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            const systemPrompt = `QUAN TRỌNG: Bạn là một trợ lý AI chuyên trả lời câu hỏi chỉ dựa trên nội dung được cung cấp.
+1. Phân tích kỹ lưỡng nội dung trong phần [NỘI DUNG TÀI LIỆU].
+2. Trả lời câu hỏi trong phần [CÂU HỎI] một cách chính xác.
+3. TUYỆT ĐỐI KHÔNG sử dụng kiến thức bên ngoài hoặc bịa đặt thông tin.
+4. Nếu không tìm thấy câu trả lời trong tài liệu, hãy nói: "Tôi không tìm thấy thông tin về điều này trong tài liệu."
+
+[NỘI DUNG TÀI LIỆU]:
+---
+${documentText}
+---
+
+[CÂU HỎI]:
+${question}`;
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [{ text: systemPrompt }]
+                }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error('Lỗi API:', errorBody);
+                    throw new Error('Hệ thống đang gặp sự cố, vui lòng thử lại sau.');
+                }
+
+                const result = await response.json();
+                
+                let botAnswer = "Rất tiếc, tôi không thể tạo ra câu trả lời vào lúc này.";
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    botAnswer = result.candidates[0].content.parts[0].text;
+                }
+                
+                removeTypingIndicator();
+                addMessageToChat('bot', botAnswer);
+
+            } catch (error) {
+                console.error(error);
+                removeTypingIndicator();
+                addMessageToChat('bot', error.message);
+            }
+        }
+
+        // --- Các hàm tiện ích chung ---
+        function addMessageToChat(sender, message) {
+            const messageWrapper = document.createElement('div');
+            messageWrapper.classList.add('flex', 'items-start', 'space-x-3', 'max-w-xl');
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('p-3', 'rounded-xl');
+            // Thay thế newline bằng thẻ <br> để hiển thị đúng trong HTML
+            messageBubble.innerHTML = message.replace(/\n/g, '<br>');
+
+            if (sender === 'user') {
+                messageWrapper.classList.add('ml-auto', 'justify-end');
+                messageBubble.classList.add('chat-bubble-user');
+            } else {
+                const botAvatar = document.createElement('div');
+                botAvatar.classList.add('w-10', 'h-10', 'rounded-full', 'bg-slate-700', 'text-white', 'flex', 'items-center', 'justify-center', 'flex-shrink-0', 'font-bold');
+                botAvatar.innerText = 'AI';
+                messageWrapper.appendChild(botAvatar);
+                messageBubble.classList.add('chat-bubble-bot');
+            }
+            messageWrapper.appendChild(messageBubble);
+            chatBox.appendChild(messageWrapper);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            sendBtn.disabled = true;
+            userInput.disabled = true;
+            const typingIndicator = document.createElement('div');
+            typingIndicator.id = 'typing-indicator';
+            typingIndicator.classList.add('flex', 'items-start', 'space-x-3', 'max-w-xl');
+            typingIndicator.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-slate-700 text-white flex items-center justify-center flex-shrink-0 font-bold">AI</div>
+                <div class="p-3 rounded-xl chat-bubble-bot flex items-center space-x-1">
+                    <span class="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0s;"></span>
+                    <span class="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.2s;"></span>
+                    <span class="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style="animation-delay: 0.4s;"></span>
+                </div>`;
+            chatBox.appendChild(typingIndicator);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) typingIndicator.remove();
+            sendBtn.disabled = false;
+            userInput.disabled = false;
+            userInput.focus();
+        }
+    </script>
+</body>
+</html>
